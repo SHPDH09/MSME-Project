@@ -50,17 +50,17 @@ class VoiceAlertService {
 
   private async playAlertSound(severity: string): Promise<void> {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        severity === 'high' 
-          ? require('../assets/sounds/high-alert.mp3')
-          : require('../assets/sounds/medium-alert.mp3'),
-        { shouldPlay: true, volume: 0.8 }
-      );
+      // Use system notification sound for mobile compatibility
+      console.log(`Playing ${severity} severity alert sound`);
       
-      // Unload sound after playing
-      setTimeout(() => {
-        sound.unloadAsync();
-      }, 3000);
+      // For web/mobile compatibility, we'll use speech with emphasis
+      const alertPrefix = severity === 'high' ? 'URGENT ALERT: ' : 'SECURITY ALERT: ';
+      await Speech.speak(alertPrefix, {
+        language: 'en-US',
+        pitch: severity === 'high' ? 1.3 : 1.1,
+        rate: 0.7,
+        volume: 1.0,
+      });
     } catch (error) {
       console.log('Alert sound not available, using speech only');
     }

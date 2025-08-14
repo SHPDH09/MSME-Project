@@ -226,7 +226,15 @@ class SecurityService {
   // File Security Analysis
   async analyzeFile(filePath: string, fileName: string): Promise<FileAnalysis> {
     try {
-      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      // For mobile compatibility, handle file info safely
+      let fileSize = 0;
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        fileSize = fileInfo.size || 0;
+      } catch (error) {
+        console.log('File info not available, using filename analysis only');
+      }
+      
       const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
       
       const dangerousExtensions = [
@@ -253,7 +261,7 @@ class SecurityService {
       }
 
       // Check file size (very large files might be suspicious)
-      if (fileInfo.size && fileInfo.size > 100 * 1024 * 1024) { // 100MB
+      if (fileSize > 100 * 1024 * 1024) { // 100MB
         riskScore += 15;
         threats.push('Large file size detected');
       }
@@ -272,7 +280,7 @@ class SecurityService {
       return {
         fileName,
         filePath,
-        fileSize: fileInfo.size || 0,
+        fileSize,
         fileType: fileExtension,
         isMalware,
         riskScore: Math.min(riskScore, 100),
@@ -357,15 +365,19 @@ class SecurityService {
     alerts.unshift(alertData);
     await AsyncStorage.setItem('security_alerts', JSON.stringify(alerts.slice(0, 50))); // Keep last 50
 
-    // Send notification
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'DigiRakshak Security Alert',
-        body: alertData.description,
-        sound: true,
-      },
-      trigger: null,
-    });
+    // Send notification with error handling
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'DigiRakshak Security Alert',
+          body: alertData.description,
+          sound: true,
+        },
+        trigger: null,
+      });
+    } catch (error) {
+      console.log('Notification not available, alert stored locally');
+    }
   }
 
   private async updateScanHistory(): Promise<void> {

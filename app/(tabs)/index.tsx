@@ -208,12 +208,12 @@ export default function Dashboard() {
         copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         const file = result.assets[0];
         setIsScanning(true);
 
         try {
-          const analysis = await securityService.analyzeFile(file.uri, file.name);
+          const analysis = await securityService.analyzeFile(file.uri || '', file.name || 'unknown');
           
           setIsScanning(false);
 
