@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Settings as SettingsIcon, Globe, Bell, CircleHelp as HelpCircle, Phone, Mail, LogOut, User, Shield, Smartphone } from 'lucide-react-native';
+import EmailService from '@/services/EmailService';
 
 export default function SettingsScreen() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [language, setLanguage] = useState('English');
   const [notifications, setNotifications] = useState({
     threatAlerts: true,
@@ -11,6 +13,24 @@ export default function SettingsScreen() {
     weeklyReports: false,
     emailNotifications: true,
   });
+
+  const emailService = EmailService.getInstance();
+
+  useEffect(() => {
+    loadCurrentUser();
+  }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await emailService.getCurrentUser();
+      setCurrentUser(user);
+      if (user) {
+        setLanguage(user.language || 'English');
+      }
+    } catch (error) {
+      console.error('Error loading user:', error);
+    }
+  };
 
   const languages = [
     { code: 'en', name: 'English', native: 'English' },
@@ -63,7 +83,14 @@ export default function SettingsScreen() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => console.log('Logging out...') },
+        { 
+          text: 'Logout', 
+          style: 'destructive', 
+          onPress: async () => {
+            await emailService.logoutUser();
+            router.replace('/auth/login');
+          }
+        },
       ]
     );
   };
@@ -90,10 +117,13 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={styles.settingTitle}>Account Information</Text>
-            <Text style={styles.settingSubtitle}>Rajesh Kumar</Text>
-            <Text style={styles.settingSubtitle}>rajesh@kumartextiles.com</Text>
-            <Text style={styles.settingSubtitle}>GST: GST123456789</Text>
-            <Text style={styles.settingSubtitle}>Registered: Jan 1, 2025</Text>
+            <Text style={styles.settingSubtitle}>{currentUser?.name || 'Loading...'}</Text>
+            <Text style={styles.settingSubtitle}>{currentUser?.email || 'Loading...'}</Text>
+            <Text style={styles.settingSubtitle}>Company: {currentUser?.companyName || 'Loading...'}</Text>
+            <Text style={styles.settingSubtitle}>GST: {currentUser?.gstNumber || 'Loading...'}</Text>
+            <Text style={styles.settingSubtitle}>
+              Status: {currentUser?.isVerified ? '✅ Verified' : '❌ Not Verified'}
+            </Text>
           </View>
         </TouchableOpacity>
         

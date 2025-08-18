@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Shield, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Shield, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react-native';
 import { router } from 'expo-router';
-import SecurityService from '@/services/SecurityService';
+import EmailService from '@/services/EmailService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -13,8 +13,19 @@ export default function LoginScreen() {
   const [showOTPModal, setShowOTPModal] = useState(false);
   const [otp, setOtp] = useState('');
   const [otpLoading, setOtpLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
-  const securityService = SecurityService.getInstance();
+  const emailService = EmailService.getInstance();
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -30,13 +41,39 @@ export default function LoginScreen() {
     setIsLoading(true);
     
     try {
-      // Send OTP to email
-      const otpResult = await securityService.sendEmailOTP(email);
+      // Check if user exists
+      const userExists = await emailService.checkUserExists(email);
+      
+      if (!userExists) {
+        setIsLoading(false);
+        Alert.alert(
+          'User Not Found',
+          'No account found with this email. Would you like to register?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Register', onPress: () => router.push('/auth/register') }
+          ]
+        );
+        return;
+      }
+
+      // Verify password
+      const passwordValid = await emailService.verifyPassword(email, password);
+      
+      if (!passwordValid) {
+        setIsLoading(false);
+        Alert.alert('Error', 'Invalid password. Please try again.');
+        return;
+      }
+
+      // Send OTP for verification
+      const otpResult = await emailService.sendEmailOTP(email);
       
       setIsLoading(false);
       
       if (otpResult.success) {
         setShowOTPModal(true);
+        setResendTimer(60); // 60 seconds cooldown
         Alert.alert('OTP Sent', otpResult.message);
       } else {
         Alert.alert('Error', otpResult.message);
@@ -56,21 +93,47 @@ export default function LoginScreen() {
     setOtpLoading(true);
     
     try {
-      const verifyResult = await securityService.verifyEmailOTP(email, otp);
+      const verifyResult = await emailService.verifyEmailOTP(email, otp);
       
       setOtpLoading(false);
       
       if (verifyResult.success) {
-        setShowOTPModal(false);
-        Alert.alert('Success', 'Login successful!', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)') }
-        ]);
+        // Complete login
+        const loginResult = await emailService.loginUser(email, password);
+        
+        if (loginResult.success) {
+          setShowOTPModal(false);
+          Alert.alert('Success', 'Login successful!', [
+            { text: 'OK', onPress: () => router.replace('/(tabs)') }
+          ]);
+        } else {
+          Alert.alert('Error', loginResult.message);
+        }
       } else {
         Alert.alert('Error', verifyResult.message);
       }
     } catch (error) {
       setOtpLoading(false);
       Alert.alert('Error', 'OTP verification failed. Please try again.');
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (resendTimer > 0) {
+      Alert.alert('Wait', `Please wait ${resendTimer} seconds before requesting a new OTP`);
+      return;
+    }
+
+    try {
+      const result = await emailService.resendOTP(email);
+      if (result.success) {
+        setResendTimer(60);
+        Alert.alert('OTP Sent', result.message);
+      } else {
+        Alert.alert('Error', result.message);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to resend OTP');
     }
   };
 
@@ -172,6 +235,7 @@ export default function LoginScreen() {
             <View style={styles.registerContainer}>
               <Text style={styles.registerText}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/auth/register')}>
+                <UserPlus size={16} color="#3B82F6" style={{ marginRight: 4 }} />
                 <Text style={styles.registerLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
@@ -220,6 +284,17 @@ export default function LoginScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Resend OTP */}
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendOTP}
+                disabled={resendTimer > 0}
+              >
+                <Text style={[styles.resendButtonText, resendTimer > 0 && styles.resendButtonTextDisabled]}>
+                  {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -404,6 +479,7 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
   modalButton: {
     flex: 1,
@@ -422,5 +498,18 @@ const styles = StyleSheet.create({
   },
   modalButtonTextPrimary: {
     color: '#ffffff',
+  },
+  resendButton: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  resendButtonText: {
+    fontSize: 14,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  resendButtonTextDisabled: {
+    color: '#9CA3AF',
   },
 });

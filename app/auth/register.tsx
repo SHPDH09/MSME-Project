@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Shield, User, Mail, Lock, Building, CreditCard, Globe } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Picker } from '@react-native-picker/picker';
+import EmailService from '@/services/EmailService';
 
 export default function RegisterScreen() {
   const [formData, setFormData] = useState({
@@ -16,6 +17,8 @@ export default function RegisterScreen() {
     language: 'English',
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  const emailService = EmailService.getInstance();
 
   const languages = [
     'English',
@@ -67,17 +70,34 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Register user
+      const result = await emailService.registerUser({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        companyName: formData.companyName,
+        gstNumber: formData.gstNumber,
+        language: formData.language,
+      });
+
       setIsLoading(false);
-      Alert.alert(
-        'Registration Successful',
-        'Your account has been created successfully. You can now sign in.',
-        [
-          { text: 'OK', onPress: () => router.replace('/auth/login') }
-        ]
-      );
-    }, 2000);
+
+      if (result.success) {
+        Alert.alert(
+          'Registration Successful',
+          'Your account has been created successfully. Please sign in to verify your email.',
+          [
+            { text: 'OK', onPress: () => router.replace('/auth/login') }
+          ]
+        );
+      } else {
+        Alert.alert('Registration Failed', result.message);
+      }
+    } catch (error) {
+      setIsLoading(false);
+      Alert.alert('Error', 'Registration failed. Please try again.');
+    }
   };
 
   return (
