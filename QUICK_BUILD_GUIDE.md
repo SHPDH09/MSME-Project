@@ -28,7 +28,7 @@ npm install
 
 ### **Step 4: EAS CLI Install करें**
 ```bash
-npm install -g @expo/eas-cli
+npm install -g eas-cli
 ```
 
 ### **Step 5: Expo Login करें**
@@ -62,7 +62,7 @@ cd path\to\your\project
 npm install
 
 # 3. EAS CLI install करें
-npm install -g @expo/eas-cli
+npm install -g eas-cli
 
 # 4. Login करें
 eas login
